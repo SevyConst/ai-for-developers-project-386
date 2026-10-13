@@ -1,23 +1,15 @@
-import { useEffect, useState } from "react"
+import { Route, Routes } from "react-router"
 
-import { fetchGreeting } from "@/lib/api"
+import { BookPage } from "@/pages/book-page"
+import { HomePage } from "@/pages/home-page"
 
 function App() {
-  const [text, setText] = useState<string | null>(null)
-
-  useEffect(() => {
-    let ignore = false
-    fetchGreeting().then((greeting) => {
-      if (!ignore) {
-        setText(greeting)
-      }
-    })
-    return () => {
-      ignore = true
-    }
-  }, [])
-
-  return text === null ? null : <p>{text}</p>
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/book" element={<BookPage />} />
+    </Routes>
+  )
 }
 
 export default App
