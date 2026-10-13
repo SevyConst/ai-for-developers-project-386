@@ -19,4 +19,12 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn-компоненты экспортируют рядом с компонентом и варианты стилей
+    // (например, buttonVariants); `shadcn add` перезапишет любые правки в файле.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
