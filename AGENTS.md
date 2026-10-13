@@ -41,3 +41,17 @@ CI (`.github/workflows/ci.yml`, на каждый push) запускает: дл
 
 - Тесты backend написаны на `@WebMvcTest` + `MockMvcTester` (пакет Spring Boot 4 `org.springframework.boot.webmvc.test.autoconfigure`).
 - **Формат коммитов — Conventional Commits, всегда, включая коммиты агента:** `<тип>(<область>): <описание>`, где тип — `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `chore` и т. п. (например, `feat: add booking form`, `fix(ci): use GITHUB_TOKEN`). Ломающее изменение — `feat!:` или футер `BREAKING CHANGE:`. `release-please` по этим сообщениям формирует `CHANGELOG.md`, релизные PR и версию — не правьте changelog и версию вручную.
+
+## Agent skills
+
+### Issue tracker
+
+Задачи ведутся в GitHub Issues (`gh` CLI). См. `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Стандартный словарь: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. См. `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: один `CONTEXT.md` и `docs/adr/` в корне репозитория. См. `docs/agents/domain.md`.
