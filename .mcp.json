@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shadcn": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "cd frontend && exec npx -y shadcn@4.21.4 mcp"
+      ]
+    }
+  }
+}
