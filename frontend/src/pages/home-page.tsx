@@ -3,7 +3,7 @@ import {
   CalendarDays,
   CalendarClock,
   CircleCheck,
-  Clock,
+  ListChecks,
   Timer,
   UserX,
   type LucideIcon,
@@ -17,37 +17,38 @@ type Item = { icon: LucideIcon; title: string; description: string }
 
 const STEPS: Item[] = [
   {
-    icon: CalendarDays,
-    title: "Выберите день",
-    description: "Откройте календарь и найдите подходящую дату.",
+    icon: ListChecks,
+    title: "Выберите тип события",
+    description: "У каждого типа есть название, описание и длительность.",
   },
   {
-    icon: Clock,
-    title: "Выберите слот",
-    description: "Свободные слоты по 30 минут — занятое время скрыто.",
+    icon: CalendarDays,
+    title: "Выберите свободный слот",
+    description: "Откройте календарь: слоты доступны на ближайшие 14 дней.",
   },
   {
     icon: CircleCheck,
-    title: "Подтвердите запись",
-    description: "Звонок появится в списке предстоящих у админа.",
+    title: "Создайте бронирование",
+    description: "Звонок появится в списке предстоящих у владельца.",
   },
 ]
 
 const BENEFITS: Item[] = [
   {
     icon: Timer,
-    title: "Слоты по 30 минут",
-    description: "Короткие звонки с понятным началом и концом.",
+    title: "Понятные типы событий",
+    description:
+      "Название, описание и длительность в минутах — до выбора слота.",
   },
   {
     icon: UserX,
     title: "Без регистрации",
-    description: "Никаких аккаунтов и паролей — выберите время и запишитесь.",
+    description: "Никаких аккаунтов и входа — выберите время и забронируйте.",
   },
   {
     icon: CalendarCheck,
     title: "Только свободное время",
-    description: "Вы видите лишь свободные слоты, занятые не показываются.",
+    description: "На одно время — одно бронирование, даже для разных типов.",
   },
 ]
 
@@ -129,11 +130,11 @@ export function HomePage() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4">
         <div className="flex flex-col items-center gap-6 py-16 text-center sm:py-24">
           <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-            Запишитесь на звонок за минуту
+            Забронируйте звонок за минуту
           </h1>
           <p className="max-w-xl text-lg text-pretty text-muted-foreground">
-            Выберите свободное время в календаре админа и подтвердите запись.
-            Без регистрации и сложных настроек.
+            Выберите тип события и свободный слот в календаре владельца на
+            ближайшие 14 дней. Без регистрации и входа в систему.
           </p>
           <Link
             to="/book"
@@ -142,7 +143,7 @@ export function HomePage() {
               className: "h-11 px-6 text-base",
             })}
           >
-            Записаться на звонок
+            Забронировать звонок
           </Link>
         </div>
         <CardSection

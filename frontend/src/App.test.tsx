@@ -20,7 +20,7 @@ describe("главная страница", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Запишитесь на звонок за минуту",
+        name: "Забронируйте звонок за минуту",
       })
     ).toBeTruthy()
   })
@@ -38,7 +38,7 @@ describe("главная страница", () => {
   test("зовёт записаться на звонок: кнопка ведёт на страницу записи", () => {
     renderAt("/")
 
-    const cta = screen.getByRole("link", { name: "Записаться на звонок" })
+    const cta = screen.getByRole("link", { name: "Забронировать звонок" })
 
     expect(cta.getAttribute("href")).toBe("/book")
   })
@@ -52,10 +52,14 @@ describe("главная страница", () => {
 
     expect(
       steps.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)
-    ).toEqual(["Выберите день", "Выберите слот", "Подтвердите запись"])
+    ).toEqual([
+      "Выберите тип события",
+      "Выберите свободный слот",
+      "Создайте бронирование",
+    ])
   })
 
-  test("нумерует шаги: первый — выбор дня, второй — слота, третий — подтверждение", () => {
+  test("нумерует шаги: первый — выбор типа события, второй — слота, третий — бронирование", () => {
     renderAt("/")
 
     const steps = within(
@@ -68,10 +72,21 @@ describe("главная страница", () => {
         within(step).getByRole("heading").textContent,
       ])
     ).toEqual([
-      ["Шаг 1", "Выберите день"],
-      ["Шаг 2", "Выберите слот"],
-      ["Шаг 3", "Подтвердите запись"],
+      ["Шаг 1", "Выберите тип события"],
+      ["Шаг 2", "Выберите свободный слот"],
+      ["Шаг 3", "Создайте бронирование"],
     ])
+  })
+
+  test("называет окно записи: слоты доступны на ближайшие 14 дней", () => {
+    renderAt("/")
+
+    const steps = within(
+      screen.getByRole("region", { name: "Как это работает" })
+    )
+
+    expect(steps.getByText(/14 дней/)).toBeTruthy()
+    expect(screen.queryByText(/30 минут/)).toBeNull()
   })
 
   test("называет три преимущества", () => {
@@ -84,7 +99,7 @@ describe("главная страница", () => {
     expect(
       benefits.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)
     ).toEqual([
-      "Слоты по 30 минут",
+      "Понятные типы событий",
       "Без регистрации",
       "Только свободное время",
     ])
@@ -101,7 +116,7 @@ describe("главная страница", () => {
   test("клик по кнопке открывает страницу записи", () => {
     renderAt("/")
 
-    fireEvent.click(screen.getByRole("link", { name: "Записаться на звонок" }))
+    fireEvent.click(screen.getByRole("link", { name: "Забронировать звонок" }))
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Запись на звонок" })
@@ -133,7 +148,7 @@ describe("несуществующая страница", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Запишитесь на звонок за минуту",
+        name: "Забронируйте звонок за минуту",
       })
     ).toBeTruthy()
   })
@@ -152,7 +167,7 @@ describe("страница записи", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Запишитесь на звонок за минуту",
+        name: "Забронируйте звонок за минуту",
       })
     ).toBeTruthy()
   })
