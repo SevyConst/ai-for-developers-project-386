@@ -29,7 +29,7 @@ const STEPS: Item[] = [
   {
     icon: CircleCheck,
     title: "Подтвердите запись",
-    description: "Звонок появится в списке предстоящих у владельца.",
+    description: "Звонок появится в списке предстоящих у админа.",
   },
 ]
 
@@ -113,10 +113,16 @@ export function HomePage() {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center px-4">
+        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2 font-semibold">
             <CalendarClock className="size-5 text-primary" />
             Календарь звонков
+          </Link>
+          <Link
+            to="/admin"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Админка
           </Link>
         </div>
       </header>
@@ -126,7 +132,7 @@ export function HomePage() {
             Запишитесь на звонок за минуту
           </h1>
           <p className="max-w-xl text-lg text-pretty text-muted-foreground">
-            Выберите свободное время в календаре владельца и подтвердите запись.
+            Выберите свободное время в календаре админа и подтвердите запись.
             Без регистрации и сложных настроек.
           </p>
           <Link

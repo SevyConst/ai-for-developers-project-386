@@ -25,6 +25,16 @@ describe("главная страница", () => {
     ).toBeTruthy()
   })
 
+  test("в шапке есть кнопка «Админка», ведущая на /admin", () => {
+    renderAt("/")
+
+    const header = within(screen.getByRole("banner"))
+
+    expect(
+      header.getByRole("link", { name: "Админка" }).getAttribute("href")
+    ).toBe("/admin")
+  })
+
   test("зовёт записаться на звонок: кнопка ведёт на страницу записи", () => {
     renderAt("/")
 
@@ -95,6 +105,36 @@ describe("главная страница", () => {
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Запись на звонок" })
+    ).toBeTruthy()
+  })
+})
+
+describe("админка", () => {
+  test("пока не реализована: клик по кнопке «Админка» показывает 404", () => {
+    renderAt("/")
+
+    fireEvent.click(screen.getByRole("link", { name: "Админка" }))
+
+    expect(screen.getByText("404")).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Страница не найдена" })
+    ).toBeTruthy()
+  })
+})
+
+describe("несуществующая страница", () => {
+  test("любой неизвестный адрес показывает 404 и даёт вернуться на главную", () => {
+    renderAt("/no-such-page")
+
+    expect(screen.getByText("404")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("link", { name: "На главную" }))
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Запишитесь на звонок за минуту",
+      })
     ).toBeTruthy()
   })
 })
