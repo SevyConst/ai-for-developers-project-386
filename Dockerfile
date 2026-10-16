@@ -4,6 +4,8 @@ FROM node:24.21.0-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
+# Вход генерации клиента Orval: orval.config.ts читает ../contract/openapi.yaml, то есть /app/contract/openapi.yaml
+COPY contract/openapi.yaml /app/contract/openapi.yaml
 COPY frontend/ ./
 RUN npm run build
 
@@ -14,6 +16,8 @@ COPY backend/.mvn/ .mvn/
 COPY backend/pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 \
     ./mvnw -B dependency:go-offline -Dskip.installnodenpm -Dskip.npm
+# Вход генерации серверных интерфейсов: openapi-generator-maven-plugin читает ../contract/openapi.yaml, то есть /app/contract/openapi.yaml
+COPY contract/openapi.yaml /app/contract/openapi.yaml
 COPY backend/src/ src/
 COPY --from=frontend-build /app/frontend/dist/ /app/frontend/dist/
 RUN --mount=type=cache,target=/root/.m2 \

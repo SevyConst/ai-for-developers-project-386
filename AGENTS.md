@@ -17,11 +17,16 @@
 Как они связаны:
 - **Разработка:** dev-сервер Vite проксирует `/api` → `http://localhost:8080` (`frontend/vite.config.ts`). Запускайте оба сервера отдельно.
 - **Сборка:** `backend/pom.xml` через `frontend-maven-plugin` устанавливает Node (`node.version`), выполняет `npm ci` и `npm run build`, а затем `maven-resources-plugin` копирует `frontend/dist` в `static/` внутри jar. То есть `./mvnw package` собирает всё приложение целиком. Чтобы пропустить шаги с Node, когда `frontend/dist` уже собран, передайте `-Dskip.installnodenpm -Dskip.npm` (так делает Dockerfile).
+- **Серверные интерфейсы:** `openapi-generator-maven-plugin` в фазе `generate-sources` генерирует из `contract/openapi.yaml` интерфейсы контроллеров (`EventTypesApi`, `BookingsApi`) и DTO в `backend/target/generated-sources`; в git они не коммитятся, контроллеры делают `implements`.
 - **Docker:** многостадийный `Dockerfile` (сборка фронтенда на Node → сборка JDK/Maven со слоёным jar → рантайм на JRE от непривилегированного пользователя). Порт сервера берётся из `$PORT` (по умолчанию 8080).
 
-Вызовы API на фронтенде идут через `frontend/src/lib/api.ts` (обычный `fetch`, при ошибке возвращает `null`).
+API вызывается только сгенерированным клиентом из `frontend/src/api/generated`, ручной `fetch` не используем.
 
 ## Команды
+
+Вся цепочка генерации (из корня репозитория):
+- `./scripts/generate.sh` — подряд: `npm run compile` в `contract/` (`tsp compile` → `contract/openapi.yaml`), `npm run generate:api` во `frontend/` (клиент Orval), `./mvnw -B generate-sources -Dskip.installnodenpm -Dskip.npm` в `backend/` (интерфейсы и DTO в `backend/target/generated-sources`). Первая ошибка останавливает цепочку: скрипт называет упавшее звено и возвращает его код выхода.
+- Перед первым запуском выполните `npm ci` в `contract/` и `frontend/`: скрипт зависимости не ставит, а без них останавливается с подсказкой. Сборка от скрипта не зависит (клиент генерируют `pre*`-хуки npm, интерфейсы — фаза `generate-sources`). Если `main.tsp` не правили, `contract/openapi.yaml` после запуска не меняется.
 
 Backend (из каталога `backend/`):
 - `./mvnw spring-boot:run` — запуск API на :8080
@@ -31,8 +36,9 @@ Backend (из каталога `backend/`):
 
 Frontend (из каталога `frontend/`; версия Node — в корневом `.nvmrc`):
 - `npm run dev` — dev-сервер Vite
+- `npm run dev:mock` — dev-сервер Vite (`--mode mock`) с браузерным моком API на MSW (`frontend/src/mocks/`), бэкенд не нужен
 - `npm run lint` / `npm run typecheck` / `npm test` (vitest, jsdom)
-- `npx vitest run src/App.test.tsx -t "название"` — один тест
+- `npx vitest run src/App.test.tsx -t "название"` — один тест. Осторожно: одиночный `npx vitest run` не запускает `pretest`, на чистом клоне сначала сгенерируйте клиент (`npm run generate:api` во `frontend/` или `./scripts/generate.sh` из корня), иначе импорты из `src/api/generated` не найдутся
 - `npm run format` — Prettier (с плагином сортировки классов Tailwind)
 - `npm run build` — `tsc -b && vite build`
 
@@ -48,7 +54,7 @@ Contract (из каталога `contract/`; Node — тот же корнево
 
 Версия Node одна на весь репозиторий: корневой `.nvmrc`. `<node.version>` в `backend/pom.xml` и тег `node:` в `Dockerfile` читать файл не умеют и должны совпадать с ним вручную; расхождение роняет CI (задача `node-version`).
 
-CI (`.github/workflows/ci.yml`, на каждый push) запускает: для backend — `checkstyle:check` и `mvnw test`; для frontend — `npm run lint -- --max-warnings=0`, `typecheck`, `test`; для контракта — `tsp compile --warn-as-error`, `tsp format --check` и проверку, что закоммиченный `openapi.yaml` свеж; плюс сверку версий Node. Любое предупреждение ESLint роняет CI.
+CI (`.github/workflows/ci.yml`, на каждый push) запускает: для backend — `checkstyle:check` и `mvnw test`; для frontend — `npm run lint -- --max-warnings=0`, `typecheck`, `test`, `build` и проверку, что воркера MSW нет в `dist/`; для контракта — `tsp compile --warn-as-error`, `tsp format --check` и проверку, что закоммиченный `openapi.yaml` свеж; плюс сверку версий Node. Любое предупреждение ESLint роняет CI.
 
 ## Соглашения
 

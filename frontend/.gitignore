@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# TypeScript-клиент, сгенерированный Orval из ../contract/openapi.yaml (npm run generate:api)
+src/api/generated
 *.local
 
 # Editor directories and files

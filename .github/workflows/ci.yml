@@ -48,6 +48,10 @@ jobs:
         run: npm run typecheck
       - name: Tests
         run: npm test
+      - name: Build
+        run: npm run build
+      - name: Mock service worker is not in the production build
+        run: test ! -e dist/mockServiceWorker.js
 
   contract:
     runs-on: ubuntu-latest
