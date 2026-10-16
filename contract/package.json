@@ -1,0 +1,18 @@
+{
+  "name": "contract",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "compile": "tsp compile .",
+    "check": "tsp compile . --warn-as-error && tsp format --check \"**/*.tsp\"",
+    "format": "tsp format \"**/*.tsp\""
+  },
+  "devDependencies": {
+    "@typespec/compiler": "1.17.0",
+    "@typespec/http": "1.17.0",
+    "@typespec/json-schema": "1.17.0",
+    "@typespec/openapi": "1.17.0",
+    "@typespec/openapi3": "1.17.0"
+  }
+}

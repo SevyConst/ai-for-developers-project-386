@@ -4,12 +4,19 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "generate:api": "orval --config orval.config.ts",
+    "predev": "npm run generate:api",
     "dev": "vite",
+    "predev:mock": "npm run generate:api",
+    "dev:mock": "vite --mode mock",
+    "prebuild": "npm run generate:api",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "pretypecheck": "npm run generate:api",
     "typecheck": "tsc -b",
     "preview": "vite preview",
+    "pretest": "npm run generate:api",
     "test": "vitest run"
   },
   "dependencies": {
@@ -39,6 +46,8 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.13.0",
     "jsdom": "^30.1.2",
+    "msw": "3.0.3",
+    "orval": "8.42.0",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "~6",

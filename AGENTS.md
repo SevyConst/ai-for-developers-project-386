@@ -8,19 +8,25 @@
 
 ## Архитектура
 
-Монорепозиторий из двух приложений, которые поставляются как **один jar-файл Spring Boot**:
+Монорепозиторий из двух приложений, которые поставляются как **один jar-файл Spring Boot**, и API-контракта между ними:
 
 - `backend/` — Spring Boot 4.1 (Java 25, Maven wrapper), пакет `com.example.calhexlet`. REST-контроллеры лежат под префиксом `/api`.
 - `frontend/` — React 19 + TypeScript + Vite 8 + Tailwind 4 + shadcn/ui (стиль `base-nova`, основан на `@base-ui/react`; компоненты добавляются через `npx shadcn add`, алиасы — в `components.json`). Алиас `@` указывает на `frontend/src`.
+- `contract/` — API-контракт на TypeSpec (подход Design First, единственный источник правды на границе фронтенда и бэкенда): `main.tsp` → `openapi.yaml` (OpenAPI 3.0.0). В jar не входит. См. `docs/adr/0003-contract-in-repo-root.md`.
 
 Как они связаны:
 - **Разработка:** dev-сервер Vite проксирует `/api` → `http://localhost:8080` (`frontend/vite.config.ts`). Запускайте оба сервера отдельно.
 - **Сборка:** `backend/pom.xml` через `frontend-maven-plugin` устанавливает Node (`node.version`), выполняет `npm ci` и `npm run build`, а затем `maven-resources-plugin` копирует `frontend/dist` в `static/` внутри jar. То есть `./mvnw package` собирает всё приложение целиком. Чтобы пропустить шаги с Node, когда `frontend/dist` уже собран, передайте `-Dskip.installnodenpm -Dskip.npm` (так делает Dockerfile).
+- **Серверные интерфейсы:** `openapi-generator-maven-plugin` в фазе `generate-sources` генерирует из `contract/openapi.yaml` интерфейсы контроллеров (`EventTypesApi`, `BookingsApi`) и DTO в `backend/target/generated-sources`; в git они не коммитятся, контроллеры делают `implements`.
 - **Docker:** многостадийный `Dockerfile` (сборка фронтенда на Node → сборка JDK/Maven со слоёным jar → рантайм на JRE от непривилегированного пользователя). Порт сервера берётся из `$PORT` (по умолчанию 8080).
 
-Вызовы API на фронтенде идут через `frontend/src/lib/api.ts` (обычный `fetch`, при ошибке возвращает `null`).
+API вызывается только сгенерированным клиентом из `frontend/src/api/generated`, ручной `fetch` не используем.
 
 ## Команды
+
+Вся цепочка генерации (из корня репозитория):
+- `./scripts/generate.sh` — подряд: `npm run compile` в `contract/` (`tsp compile` → `contract/openapi.yaml`), `npm run generate:api` во `frontend/` (клиент Orval), `./mvnw -B generate-sources -Dskip.installnodenpm -Dskip.npm` в `backend/` (интерфейсы и DTO в `backend/target/generated-sources`). Первая ошибка останавливает цепочку: скрипт называет упавшее звено и возвращает его код выхода.
+- Перед первым запуском выполните `npm ci` в `contract/` и `frontend/`: скрипт зависимости не ставит, а без них останавливается с подсказкой. Сборка от скрипта не зависит (клиент генерируют `pre*`-хуки npm, интерфейсы — фаза `generate-sources`). Если `main.tsp` не правили, `contract/openapi.yaml` после запуска не меняется.
 
 Backend (из каталога `backend/`):
 - `./mvnw spring-boot:run` — запуск API на :8080
@@ -28,14 +34,27 @@ Backend (из каталога `backend/`):
 - `./mvnw test -Dtest=HelloControllerTest#helloReturnsGreetingAsJson` — один тест
 - `./mvnw checkstyle:check` — линтер (конфиг `backend/checkstyle.xml`, проверяет и тестовые исходники; существующие Java-файлы набраны с отступами табами)
 
-Frontend (из каталога `frontend/`; версия Node — в `.nvmrc`):
+Frontend (из каталога `frontend/`; версия Node — в корневом `.nvmrc`):
 - `npm run dev` — dev-сервер Vite
+- `npm run dev:mock` — dev-сервер Vite (`--mode mock`) с браузерным моком API на MSW (`frontend/src/mocks/`), бэкенд не нужен
 - `npm run lint` / `npm run typecheck` / `npm test` (vitest, jsdom)
-- `npx vitest run src/App.test.tsx -t "название"` — один тест
+- `npx vitest run src/App.test.tsx -t "название"` — один тест. Осторожно: одиночный `npx vitest run` не запускает `pretest`, на чистом клоне сначала сгенерируйте клиент (`npm run generate:api` во `frontend/` или `./scripts/generate.sh` из корня), иначе импорты из `src/api/generated` не найдутся
 - `npm run format` — Prettier (с плагином сортировки классов Tailwind)
 - `npm run build` — `tsc -b && vite build`
 
-CI (`.github/workflows/ci.yml`, на каждый push) запускает: для backend — `checkstyle:check` и `mvnw test`; для frontend — `npm run lint -- --max-warnings=0`, `typecheck`, `test`. Любое предупреждение ESLint роняет CI.
+Contract (из каталога `contract/`; Node — тот же корневой `.nvmrc`):
+- `npm ci` — установить TypeSpec (точные версии `@typespec/*` без `^` и `~`, `package-lock.json` закоммичен)
+- `npx tsp compile .` — сгенерировать `openapi.yaml` из `main.tsp`
+- `npm run check` — `tsp compile . --warn-as-error` и `tsp format --check "**/*.tsp"` (то же, что в CI)
+- `npm run format` — отформатировать `.tsp`
+
+**`contract/openapi.yaml` руками не править.** Файл сгенерирован и коммитится: правка пропадёт при следующей генерации, а CI (задача `contract`) упадёт, если закоммиченный файл не совпадает с результатом `tsp compile`. Меняйте `main.tsp`, перегенерируйте и коммитьте оба файла вместе. `.tsp` удобно править в VS Code с расширением TypeSpec. Обновление TypeSpec — осознанный шаг: поднять версии, перегенерировать, закоммитить `openapi.yaml`.
+
+**Контракт не правится молча внутри реализации.** Если фронтенду или бэкенду не хватает контракта, остановитесь и внесите правку отдельным PR `feat(contract)` (ломающую — `feat(contract)!:`): он вливается раньше реализаций. План раздельной реализации фронтенда и бэкенда по контракту (срезы, очередь шагов, ловушки) — `docs/plan/split.md`.
+
+Версия Node одна на весь репозиторий: корневой `.nvmrc`. `<node.version>` в `backend/pom.xml` и тег `node:` в `Dockerfile` читать файл не умеют и должны совпадать с ним вручную; расхождение роняет CI (задача `node-version`).
+
+CI (`.github/workflows/ci.yml`, на каждый push) запускает: для backend — `checkstyle:check` и `mvnw test`; для frontend — `npm run lint -- --max-warnings=0`, `typecheck`, `test`, `build` и проверку, что воркера MSW нет в `dist/`; для контракта — `tsp compile --warn-as-error`, `tsp format --check` и проверку, что закоммиченный `openapi.yaml` свеж; плюс сборку Docker-образа (`docker build`) и сверку версий Node. Любое предупреждение ESLint роняет CI.
 
 ## Соглашения
 

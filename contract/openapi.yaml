@@ -1,0 +1,615 @@
+openapi: 3.0.0
+info:
+  title: Календарь звонков
+  version: 1.0.0
+  description: |-
+    API сервиса «Календарь звонков».
+
+    Владелец создаёт Типы событий и видит предстоящие Звонки в Админке; Гость выбирает Тип события и свободный Слот
+    в Окне записи и создаёт Бронирование. Регистрации и авторизации нет.
+
+    Все моменты времени — московские (UTC+3, без перехода на летнее время) и передаются строго со смещением `+03:00`,
+    календарные даты — по Москве (см. `docs/adr/0002-single-moscow-time-zone.md`).
+
+    Тела ошибок — `application/problem+json` (RFC 9457). Поля `title` и `detail` пишутся для разработчика и логов,
+    пользователю их показывать нельзя: интерфейс сопоставляет `code` со своим текстом. Статусы 5xx, 405, 406 и 415
+    в контракте не описаны.
+tags:
+  - name: EventTypes
+  - name: Bookings
+paths:
+  /api/bookings:
+    post:
+      operationId: createBooking
+      description: |-
+        Создать Бронирование (Гость). Сервер гарантирует не более одного Бронирования на любое пересекающееся время
+        (конфликт — интервалы пересекаются на ненулевое время, «встык» разрешён); проигравший одновременных запросов
+        получает 409 `slot_taken`.
+      parameters: []
+      responses:
+        '201':
+          description: Ресурс создан; в теле — созданный ресурс.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+        '404':
+          description: '404: Тип события не существует (идентификатор из пути или из тела запроса).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/NotFoundProblem'
+        '409':
+          description: |-
+            409 при создании Бронирования: Слот недоступен по состоянию на «сейчас». Проверки идут в порядке
+            `slot_in_past` → `slot_outside_window` → `slot_taken`: Слот в прошлом или вне Окна не получает ответ «занят».
+            После любого 409 клиент перечитывает Слоты и просит выбрать другой.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/BookingConflictProblem'
+      tags:
+        - Bookings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+  /api/bookings/upcoming:
+    get:
+      operationId: listUpcomingBookings
+      description: |-
+        Предстоящие Звонки (Владелец): Бронирования всех Типов событий, у которых конец строго позже «сейчас» —
+        идущий Звонок виден до своего конца, завершённых нет. Порядок фиксирован: начало по возрастанию.
+        Фильтров нет.
+      parameters:
+        - $ref: '#/components/parameters/PageParams.page'
+        - $ref: '#/components/parameters/PageParams.pageSize'
+      responses:
+        '200':
+          description: Успешный ответ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpcomingBookingPage'
+        '400':
+          description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+      tags:
+        - Bookings
+  /api/event-types:
+    get:
+      operationId: listEventTypes
+      description: |-
+        Список Типов событий. Один для Гостя и Владельца, без лимита на количество, постраничный; порядок —
+        по времени создания (старые первыми), поэтому новые элементы попадают в конец и не сдвигают просмотренные страницы.
+      parameters:
+        - $ref: '#/components/parameters/PageParams.page'
+        - $ref: '#/components/parameters/PageParams.pageSize'
+      responses:
+        '200':
+          description: Успешный ответ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventTypePage'
+        '400':
+          description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+      tags:
+        - EventTypes
+    post:
+      operationId: createEventType
+      description: |-
+        Создать Тип события (Владелец). Формат проверяется раньше конфликта: нарушения полей — 400, занятое название — 409.
+        Идемпотентности нет: повтор успешного запроса даёт 409. Уникальность названия сервер гарантирует и при
+        одновременных запросах: проигравший получает 409.
+      parameters: []
+      responses:
+        '201':
+          description: Ресурс создан; в теле — созданный ресурс.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventType'
+        '400':
+          description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+        '409':
+          description: '409 при создании Типа события: название занято (сравнение без учёта регистра, после обрезки пробелов).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/EventTypeNameTakenProblem'
+      tags:
+        - EventTypes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventTypeCreate'
+  /api/event-types/{eventTypeId}:
+    get:
+      operationId: getEventType
+      description: 'Один Тип события по идентификатору: страница записи показывает его название, описание и длительность.'
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Успешный ответ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventType'
+        '400':
+          description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+        '404':
+          description: '404: Тип события не существует (идентификатор из пути или из тела запроса).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/NotFoundProblem'
+      tags:
+        - EventTypes
+  /api/event-types/{eventTypeId}/slots:
+    get:
+      operationId: listSlots
+      description: |-
+        Свободные Слоты Типа события на всё Окно записи. Параметров периода нет. Слот свободен, если его начало
+        строго позже «сейчас» и его интервал не пересекается ни с одним Бронированием. Потолок ответа — 14 × 96 = 1344 Слота.
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Успешный ответ.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotCalendar'
+        '400':
+          description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+        '404':
+          description: '404: Тип события не существует (идентификатор из пути или из тела запроса).'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/NotFoundProblem'
+      tags:
+        - EventTypes
+components:
+  parameters:
+    PageParams.page:
+      name: page
+      in: query
+      required: false
+      description: |-
+        Номер страницы, считается с единицы. `page` меньше 1 — 400, значение молча не подгоняется. Страница за
+        пределами списка и пустой список — не ошибка: 200 с `items: []` и честным `total`.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 1
+      explode: false
+    PageParams.pageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: 'Размер страницы: от 1 до 100. Значение вне пределов — 400, молча не подгоняется.'
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+      explode: false
+  schemas:
+    Booking:
+      type: object
+      required:
+        - id
+        - eventTypeId
+        - start
+        - end
+        - guestName
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Идентификатор Бронирования, выдаёт сервер.
+        eventTypeId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Идентификатор Типа события.
+        start:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: Начало Звонка.
+        end:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: 'Конец Звонка: начало плюс длительность Типа события, считает сервер.'
+        guestName:
+          type: string
+          description: Имя Гостя (после обрезки пробелов по краям).
+      description: 'Бронирование: занятие Гостем Слота под выбранный Тип события.'
+    BookingConflictCode:
+      type: string
+      enum:
+        - slot_in_past
+        - slot_outside_window
+        - slot_taken
+      description: Причина отказа Бронирования по состоянию на «сейчас».
+    BookingConflictProblem:
+      type: object
+      required:
+        - status
+        - title
+        - code
+      properties:
+        status:
+          type: integer
+          format: int32
+          description: Код статуса HTTP.
+          enum:
+            - 409
+        title:
+          type: string
+          description: Краткое описание проблемы для разработчика и логов; пользователю не показывается.
+        detail:
+          type: string
+          description: Подробности для разработчика и логов; пользователю не показываются.
+        code:
+          allOf:
+            - $ref: '#/components/schemas/BookingConflictCode'
+          description: Машинная причина отказа.
+      description: |-
+        409 при создании Бронирования: Слот недоступен по состоянию на «сейчас». Проверки идут в порядке
+        `slot_in_past` → `slot_outside_window` → `slot_taken`: Слот в прошлом или вне Окна не получает ответ «занят».
+        После любого 409 клиент перечитывает Слоты и просит выбрать другой.
+    BookingCreate:
+      type: object
+      required:
+        - eventTypeId
+        - start
+        - guestName
+      properties:
+        eventTypeId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Идентификатор Типа события.
+        start:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: 'Начало Слота: строго `+03:00`, на Сетке слотов (минуты `00`, `15`, `30`, `45`, секунды нулевые).'
+        guestName:
+          type: string
+          minLength: 1
+          description: |-
+            Имя Гостя: любая непустая строка (любые символы Unicode), верхней границы длины нет. Пробелы по краям
+            сервер обрезает; строка из одних пробелов считается пустой. Имя не уникально и Гостя не идентифицирует.
+      description: |-
+        Запрос на создание Бронирования. Слот не удерживается, пока Гость заполняет форму, идемпотентности нет:
+        повтор после успеха даёт 409 `slot_taken`.
+    EventType:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - durationMinutes
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Идентификатор, выдаёт сервер при создании (UUID в канонической строчной форме).
+        name:
+          type: string
+          description: Название.
+        description:
+          type: string
+          description: Описание.
+        durationMinutes:
+          type: integer
+          format: int32
+          description: Длительность Звонка в минутах.
+      description: 'Тип события: вид Звонка, который Владелец предлагает Гостям. Неизменяем: редактирования и удаления нет.'
+    EventTypeCreate:
+      type: object
+      required:
+        - name
+        - description
+        - durationMinutes
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 'Название, 1–100 символов. Уникально среди Типов событий: сравнение после обрезки пробелов, без учёта регистра (Unicode), внутренние пробелы не схлопываются.'
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Описание, 1–500 символов. Не обязано быть уникальным.
+        durationMinutes:
+          type: integer
+          format: int32
+          minimum: 15
+          maximum: 480
+          multipleOf: 15
+          description: |-
+            Длительность Звонка в минутах: целое число от 15 до 480, кратное 15 (шагу Сетки слотов).
+            Значение вне 15–480 — `out_of_range`, внутри диапазона, но не кратное 15 — `not_on_grid`.
+      description: Запрос на создание Типа события. Пробелы по краям `name` и `description` сервер обрезает; строка из одних пробелов считается пустой.
+    EventTypeNameTakenProblem:
+      type: object
+      required:
+        - status
+        - title
+        - code
+      properties:
+        status:
+          type: integer
+          format: int32
+          description: Код статуса HTTP.
+          enum:
+            - 409
+        title:
+          type: string
+          description: Краткое описание проблемы для разработчика и логов; пользователю не показывается.
+        detail:
+          type: string
+          description: Подробности для разработчика и логов; пользователю не показываются.
+        code:
+          type: string
+          enum:
+            - event_type_name_taken
+          description: Машинная причина отказа.
+      description: '409 при создании Типа события: название занято (сравнение без учёта регистра, после обрезки пробелов).'
+    EventTypePage:
+      type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventType'
+          description: Элементы страницы. Порядок задан в описании операции.
+        total:
+          type: integer
+          format: int32
+          description: |-
+            Число всех элементов списка на момент запроса, а не на странице. Число страниц клиент считает сам:
+            `ceil(total / pageSize)`. Страницы не образуют снимка: список между запросами может измениться и сдвинуть
+            страницы (повтор или пропуск элемента), поэтому каждый ответ несёт актуальный `total`.
+      description: Страница Типов событий.
+    FieldViolation:
+      type: object
+      required:
+        - field
+        - code
+      properties:
+        field:
+          type: string
+          description: Имя поля тела (`name`, `description`, `durationMinutes`, `eventTypeId`, `start`, `guestName`) или параметра (`page`, `pageSize`, `eventTypeId` в пути).
+        code:
+          allOf:
+            - $ref: '#/components/schemas/FieldViolationCode'
+          description: Причина нарушения.
+      description: Нарушение в одном поле запроса.
+    FieldViolationCode:
+      type: string
+      enum:
+        - required
+        - invalid_format
+        - blank
+        - too_long
+        - out_of_range
+        - not_on_grid
+      description: Причина нарушения в одном поле.
+    MoscowDateTime:
+      type: string
+      pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?\+03:00$
+      format: date-time
+      description: |-
+        Момент времени по Москве: строка ISO 8601 строго со смещением `+03:00`, например `2026-10-20T14:30:00+03:00`.
+        Другое смещение, в том числе `Z`, — ошибка формата, даже если момент тот же.
+    NotFoundProblem:
+      type: object
+      required:
+        - status
+        - title
+        - code
+      properties:
+        status:
+          type: integer
+          format: int32
+          description: Код статуса HTTP.
+          enum:
+            - 404
+        title:
+          type: string
+          description: Краткое описание проблемы для разработчика и логов; пользователю не показывается.
+        detail:
+          type: string
+          description: Подробности для разработчика и логов; пользователю не показываются.
+        code:
+          type: string
+          enum:
+            - event_type_not_found
+          description: Машинная причина ответа.
+      description: '404: Тип события не существует (идентификатор из пути или из тела запроса).'
+    Slot:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: Начало на Сетке слотов (минуты `00`, `15`, `30` или `45`, секунды нулевые).
+        end:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: 'Конец: начало плюс длительность Типа события. Считает сервер, клиент время не складывает. Может выйти за полночь.'
+      description: |-
+        Слот: свободное для выбранного Типа события начало Звонка. Собственного идентификатора нет: Слот определяется
+        парой «Тип события + начало».
+    SlotCalendar:
+      type: object
+      required:
+        - days
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlotDay'
+          minItems: 14
+          maxItems: 14
+          description: |-
+            Ровно 14 дат Окна записи по возрастанию (сегодня и 13 следующих), включая даты без свободных Слотов
+            (`slots: []`). «Сегодня» определяет сервер по `Europe/Moscow`, клиент свои даты не вычисляет.
+      description: Свободные Слоты выбранного Типа события на всё Окно записи.
+    SlotDay:
+      type: object
+      required:
+        - date
+        - slots
+      properties:
+        date:
+          type: string
+          format: date
+          description: Календарная дата по Москве. Слот относится к дате своего начала, даже если его конец уходит за полночь.
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Slot'
+          description: Свободные Слоты по возрастанию `start`. Пустой массив — свободных Слотов на эту дату нет.
+      description: Свободные Слоты одной календарной даты.
+    UpcomingBooking:
+      type: object
+      required:
+        - id
+        - start
+        - end
+        - guestName
+        - eventType
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Идентификатор Бронирования.
+        start:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: Начало Звонка.
+        end:
+          allOf:
+            - $ref: '#/components/schemas/MoscowDateTime'
+          description: Конец Звонка.
+        guestName:
+          type: string
+          description: Имя Гостя.
+        eventType:
+          allOf:
+            - $ref: '#/components/schemas/EventType'
+          description: Тип события. Типы событий неизменяемы, поэтому вложенная копия не расходится с оригиналом.
+      description: |-
+        Предстоящий Звонок: Бронирование, показанное Владельцу. Отдельной модели «Звонок» в контракте нет — Звонок
+        это Бронирование глазами Владельца. В отличие от `Booking`, Тип события вложен целиком: список Типов событий
+        постраничный, и клиент не может надёжно сопоставить `eventTypeId` с названием.
+    UpcomingBookingPage:
+      type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpcomingBooking'
+          description: Элементы страницы. Порядок задан в описании операции.
+        total:
+          type: integer
+          format: int32
+          description: |-
+            Число всех элементов списка на момент запроса, а не на странице. Число страниц клиент считает сам:
+            `ceil(total / pageSize)`. Страницы не образуют снимка: список между запросами может измениться и сдвинуть
+            страницы (повтор или пропуск элемента), поэтому каждый ответ несёт актуальный `total`.
+      description: Страница предстоящих Звонков.
+    Uuid:
+      type: string
+      format: uuid
+      description: 'Идентификатор ресурса: UUID в канонической строчной форме, выдаёт сервер.'
+    ValidationProblem:
+      type: object
+      required:
+        - status
+        - title
+        - code
+        - errors
+      properties:
+        status:
+          type: integer
+          format: int32
+          description: Код статуса HTTP.
+          enum:
+            - 400
+        title:
+          type: string
+          description: Краткое описание проблемы для разработчика и логов; пользователю не показывается.
+        detail:
+          type: string
+          description: Подробности для разработчика и логов; пользователю не показываются.
+        code:
+          type: string
+          enum:
+            - validation_failed
+          description: Машинная причина ответа.
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldViolation'
+          description: |-
+            Нарушения по полям, по одному на поле: первое по порядку `required`, `invalid_format`, `blank`, `too_long`,
+            `out_of_range`, `not_on_grid`. Перечисляются все нарушения ограничений сразу. Исключение — ошибка типа или
+            формата тела (`invalid_format`, например `30.5` вместо целого): разбор тела останавливается на ней, в `errors`
+            ровно одно нарушение, остальные поля в этом запросе не проверяются. Синтаксически битый JSON — тот же 400
+            с пустым `errors`.
+      description: '400: запрос неверен сам по себе. Формат проверяется раньше конфликта (400 раньше 409).'

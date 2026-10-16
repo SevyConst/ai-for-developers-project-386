@@ -1,0 +1,16 @@
+emit:
+  - "@typespec/openapi3"
+# В CI предупреждения должны ронять сборку.
+warn-as-error: true
+options:
+  "@typespec/openapi3":
+    # Путь задан явно: по умолчанию результат ложится в {cwd}/tsp-output и зависит от каталога запуска.
+    emitter-output-dir: "{project-root}"
+    output-file: "openapi.yaml"
+    # Массив и явная версия: смена умолчания в новой версии TypeSpec не должна молча переключить OpenAPI.
+    # openapi-generator читает 3.0 без оговорок, 3.1 помечает как beta, 3.2 не читает вовсе (ADR-0004).
+    openapi-versions: ["3.0.0"]
+    omit-unreachable-types: true
+linter:
+  extends:
+    - "@typespec/http/all"
