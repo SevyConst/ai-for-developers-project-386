@@ -20,7 +20,7 @@
 - Бэкенд: Spring Boot 4.1, Java 25, только скелет шаблона — `HelloController` (`/api/hello`), `Greeting`, `HelloControllerTest`.
 - Фронтенд: React 19 + Vite 8, страницы `/` (главная), `/book` (заглушка) и 404; `/admin` намеренно не реализован; `src/lib/api.ts` с `fetchGreeting` (нигде не вызывается).
 
-Нет (всё это делает очередь работ): плагина генератора серверных интерфейсов, `spring-boot-starter-validation`, Orval, MSW, SPA-fallback, `COPY contract/openapi.yaml` в `Dockerfile`, хранилища данных.
+Нет (всё это делает очередь работ): плагина генератора серверных интерфейсов, `spring-boot-starter-validation`, Orval, MSW, SPA-fallback, `COPY contract/openapi.yaml` в `Dockerfile`, единой команды, повторяющей всю цепочку генерации, хранилища данных.
 
 ## 3. Контракт
 
@@ -32,6 +32,7 @@
 - Генерирует разработчик локально: `cd contract && npm ci && npx tsp compile .`. Проверка перед коммитом: `npm run check` (то же, что в CI). `.tsp` удобно править в VS Code с расширением TypeSpec.
 - Свежесть проверяет задача CI `contract`: перегенерация и `git diff --exit-code`. Maven и Docker `tsp` **не запускают**, а читают готовый файл.
 - Код потребителей (Java-интерфейсы бэкенда, TypeScript-клиент фронтенда) генерируется из `openapi.yaml` в сборке и **не коммитится**.
+- Всю цепочку (контракт → `openapi.yaml` → клиент → серверные интерфейсы) разработчик повторяет одной командой; она появляется в шаге 0.4. Сборка от этой команды не зависит: клиент генерируют `pre*`-хуки npm, интерфейсы — фаза `generate-sources`.
 - Версии `@typespec/*` закреплены точно: вывод эмиттера между версиями побайтно не гарантирован. Обновление TypeSpec — осознанный шаг: поднять версии, перегенерировать, закоммитить `openapi.yaml`.
 - Версия OpenAPI — 3.0.0 (`openapi-generator` читает 3.0 без оговорок, 3.1 помечает как beta, 3.2 не читает) — [ADR-0004](../adr/0004-server-interfaces-generated-from-contract.md), [«Стек потребления контракта…»](https://github.com/SevyConst/ai-for-developers-project-386/issues/21), п. 1.
 - Единая версия Node — корневой `.nvmrc`; `<node.version>` в `backend/pom.xml` и тег `node:` в `Dockerfile` совпадают с ним вручную, расхождение роняет CI.
@@ -102,13 +103,14 @@
 
 ### Нулевой срез: инфраструктура потребления
 
-Три независимых PR, порядок как в таблице.
+Четыре PR, порядок как в таблице: 0.1–0.3 независимы друг от друга, 0.4 зависит от 0.1 и 0.3.
 
 | # | Шаг (тип коммита) | Содержание | Готово, когда |
 |---|---|---|---|
 | 0.1 | BE-0 (`chore(backend)`) | `openapi-generator-maven-plugin` 7.26.0 с опциями из п. 4.2, `spring-boot-starter-validation`, `COPY contract/openapi.yaml /app/contract/openapi.yaml` в стадию `backend-build` `Dockerfile`, строка в `AGENTS.md` | чистая сборка на JDK 25, `docker build` и `checkstyle:check` зелёные (при необходимости `excludes` для `generated-sources`), `EventTypesApi` и `BookingsApi` лежат в `target/generated-sources` |
 | 0.2 | SPA-fallback (`fix(backend)`) | `GET /book` и `/admin` отдают `index.html`; неизвестный `/api/...` остаётся 404 и `index.html` не получает; ADR-0001 дополняется строкой о переносе срока (раздел 11) | тест на оба случая, CI зелёный |
-| 0.3 | FE-0 (`chore(frontend)`) | см. список ниже | `lint`, `typecheck`, `test`, `build` зелёные; в `dist` нет воркера; `await (await fetch('/api/event-types')).json()` в консоли `npm run dev:mock` возвращает фикстуру |
+| 0.3 | FE-0 (`chore(frontend)`) | см. список ниже | `lint`, `typecheck`, `test`, `build` зелёные; в `dist` нет воркера; `await (await fetch('/api/event-types')).json()` в консоли `npm run dev:mock` возвращает фикстуру; тест Vitest вызывает сгенерированную функцию `listEventTypes` через MSW и сужает результат по `status` (фронтенд пользуется клиентом) |
+| 0.4 | Цепочка одной командой (`chore`) | см. список ниже | на чистом клоне одна команда проходит без ошибок; после неё `git status` чист (`openapi.yaml` не изменился), есть `frontend/src/api/generated/`, а `EventTypesApi` и `BookingsApi` лежат в `target/generated-sources`; команда описана в `AGENTS.md` |
 
 **Что входит во FE-0:**
 
@@ -117,6 +119,7 @@
 - `.gitignore`, `.prettierignore`, `globalIgnores` в ESLint для сгенерированного каталога.
 - MSW 3 точной версии. В Vitest: `setupFiles` с `setupServer`, сброс обработчиков между тестами.
 - Браузерный мок: плагин `msw/vite` в `vite.config.ts`, `dev:mock` = `vite --mode mock`, в `main.tsx` условный динамический импорт `virtual:msw` под `import.meta.env.MODE === 'mock'`, каталог `src/mocks/` с одним обработчиком `listEventTypes` (фикстура на типах Orval), `/// <reference types="msw/vite/client" />`.
+- **Проверка клиента:** тест Vitest, в котором сгенерированная функция `listEventTypes` получает ответ от обработчика MSW (фикстура на типах Orval), а результат сужается по `status` (проверка, что клиент собирается и пригоден к использованию; страницы с вызовами API появятся в S1).
 - **Сторож в CI:** в задаче `frontend` шаг `npm run build` и `test ! -e dist/mockServiceWorker.js`.
 - `COPY contract/openapi.yaml /app/contract/openapi.yaml` в стадию `frontend-build` `Dockerfile`.
 - Удаление `frontend/src/lib/api.ts` (`fetchGreeting`), правка `AGENTS.md`: правило «API вызывается только сгенерированным клиентом», команда `dev:mock`.
@@ -124,6 +127,13 @@
 **Что намеренно не входит в BE-0** (уходит в BE-трек S1): `@RestControllerAdvice`, `spring.jackson.default-property-inclusion=non_null`, валидатор `openapi-request-validator-mockmvc`, `LevelResolver`, удаление `Hello*`. Причина: четыре исключения Spring возникают только на настоящих эндпоинтах, а S1 вызывает все четыре (тело `POST`, `page` и `pageSize`, UUID в пути). В нуле остаётся только то, что проверяется сборкой.
 
 `Dockerfile` правится двумя независимыми строками, по одной в своей стадии, поэтому BE-0 и FE-0 не конфликтуют.
+
+**Что входит в 0.4:**
+
+- Одна команда для разработчика, которая подряд выполняет звенья цепочки: `tsp compile` в `contract/`, генерацию клиента Orval во `frontend/`, `generate-sources` в `backend/` (с `-Dskip.installnodenpm -Dskip.npm`).
+- Форма команды (корневой npm-скрипт, `Makefile` или другое) и то, ставит ли она зависимости (`npm ci`), решается внутри шага: выбор обратим, ADR не нужен.
+- Ограничения: Maven и Docker `tsp` не запускают ([ADR-0003](../adr/0003-contract-in-repo-root.md)), `Dockerfile` не меняется; `pre*`-хуки и `generate-sources` остаются как есть, чтобы сборка не зависела от команды.
+- Описание команды в `AGENTS.md` (раздел «Команды»).
 
 ### S1 «Типы событий»
 
@@ -209,7 +219,7 @@
 - **Переходный период мока.** В [«Стеке потребления контракта…»](https://github.com/SevyConst/ai-for-developers-project-386/issues/21), п. 4 сказано «обработчик операции удаляется, когда она реализована на бэкенде». Заменено правилом «всё или ничего» (раздел 7).
 - **`mockServiceWorker.js` в `public/`.** Ловушка из п. 4 того же тикета снята (раздел 9).
 - **Нулевой срез.** Тот же тикет передавал в нулевой срез `@RestControllerAdvice`, валидатор и `LevelResolver`; по плану они уходят в BE-трек S1.
-- **`AGENTS.md`.** Пока там написано «Вызовы API на фронтенде идут через `frontend/src/lib/api.ts`» и в качестве примера одного теста назван `HelloControllerTest`. Правится: правило про сгенерированный клиент и команда `dev:mock` — в шаге 0.3, пример теста — в шаге 1.2, удаление `dev:mock` — в Ф.1.
+- **`AGENTS.md`.** Пока там написано «Вызовы API на фронтенде идут через `frontend/src/lib/api.ts`» и в качестве примера одного теста назван `HelloControllerTest`. Правится: правило про сгенерированный клиент и команда `dev:mock` — в шаге 0.3, общая команда генерации — в шаге 0.4, пример теста — в шаге 1.2, удаление `dev:mock` — в Ф.1.
 
 ## 12. Что не проверялось
 
@@ -217,6 +227,7 @@
 
 - потребление `contract/openapi.yaml` клиентом Orval и `openapi-generator` (шаги 0.1 и 0.3);
 - чистая сборка на JDK 25 и `docker build` (0.1, Ф.2);
+- повторяемость цепочки генерации с чистого клона одной командой (0.4);
 - Service Worker MSW в браузере и вырезание ветки `MODE === 'mock'` из бандла `vite build` на Vite 8 (0.3);
 - плагин `msw/vite`: прочитан в исходниках, не запущен (0.3);
 - реальный прогон задач CI `contract` и `node-version` на GitHub;
