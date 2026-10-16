@@ -81,6 +81,14 @@ jobs:
             exit 1
           fi
 
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Docker image builds
+        run: docker build -t calhexlet:ci .
+
   node-version:
     runs-on: ubuntu-latest
     timeout-minutes: 5

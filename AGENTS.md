@@ -54,7 +54,7 @@ Contract (из каталога `contract/`; Node — тот же корнево
 
 Версия Node одна на весь репозиторий: корневой `.nvmrc`. `<node.version>` в `backend/pom.xml` и тег `node:` в `Dockerfile` читать файл не умеют и должны совпадать с ним вручную; расхождение роняет CI (задача `node-version`).
 
-CI (`.github/workflows/ci.yml`, на каждый push) запускает: для backend — `checkstyle:check` и `mvnw test`; для frontend — `npm run lint -- --max-warnings=0`, `typecheck`, `test`, `build` и проверку, что воркера MSW нет в `dist/`; для контракта — `tsp compile --warn-as-error`, `tsp format --check` и проверку, что закоммиченный `openapi.yaml` свеж; плюс сверку версий Node. Любое предупреждение ESLint роняет CI.
+CI (`.github/workflows/ci.yml`, на каждый push) запускает: для backend — `checkstyle:check` и `mvnw test`; для frontend — `npm run lint -- --max-warnings=0`, `typecheck`, `test`, `build` и проверку, что воркера MSW нет в `dist/`; для контракта — `tsp compile --warn-as-error`, `tsp format --check` и проверку, что закоммиченный `openapi.yaml` свеж; плюс сборку Docker-образа (`docker build`) и сверку версий Node. Любое предупреждение ESLint роняет CI.
 
 ## Соглашения
 
