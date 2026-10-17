@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/SevyConst/ai-for-developers-project-386/compare/v1.1.0...v1.2.0) (2026-10-16)
+
+
+### Features
+
+* **contract:** add TypeSpec API contract with generated OpenAPI ([c33c0de](https://github.com/SevyConst/ai-for-developers-project-386/commit/c33c0de4e1126893d2fd7c03e05cc0afd6414aa3))
+* **frontend:** align home page and glossary with event types and 14-day booking ([77dfde7](https://github.com/SevyConst/ai-for-developers-project-386/commit/77dfde7affaf6e92ebd44c384dc3a7a552cce5ff))
+
 ## [1.1.0](https://github.com/SevyConst/ai-for-developers-project-386/compare/v1.0.0...v1.1.0) (2026-10-14)
 
 
