@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
+import { http, HttpResponse } from "msw"
 import { MemoryRouter } from "react-router"
 import { describe, expect, test } from "vitest"
 
 import App from "./App"
+import type { EventTypePage } from "@/api/generated/model"
+import { server } from "@/test/server"
 
 function renderAt(path: string) {
   render(
@@ -125,15 +128,20 @@ describe("главная страница", () => {
 })
 
 describe("админка", () => {
-  test("пока не реализована: клик по кнопке «Админка» показывает 404", () => {
+  test("клик по кнопке «Админка» открывает Админку со списком Типов событий", async () => {
+    server.use(
+      http.get("/api/event-types", () =>
+        HttpResponse.json({ items: [], total: 0 } satisfies EventTypePage)
+      )
+    )
     renderAt("/")
 
     fireEvent.click(screen.getByRole("link", { name: "Админка" }))
 
-    expect(screen.getByText("404")).toBeTruthy()
     expect(
-      screen.getByRole("heading", { level: 1, name: "Страница не найдена" })
+      screen.getByRole("heading", { level: 1, name: "Админка" })
     ).toBeTruthy()
+    expect(await screen.findByText("Типов событий пока нет")).toBeTruthy()
   })
 })
 
