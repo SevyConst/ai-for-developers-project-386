@@ -105,11 +105,12 @@
 
 ### Статус выполнения
 
-**Выполнены шаги 0.1, 0.3 и 0.4** (шаги 4–6 из методички: серверные артефакты, клиент SDK и цепочка одной командой). Не выполнены: 0.2 (SPA-fallback), S1…S4, Ф.1, Ф.2. Таблицы ниже остаются описанием того, что делает шаг и как он проверяется; тикеты на выполненные шаги не нужны.
+**Выполнены шаги 0.1, 0.2, 0.3 и 0.4** (0.1, 0.3 и 0.4 — шаги 4–6 из методички: серверные артефакты, клиент SDK и цепочка одной командой; 0.2 — SPA-fallback). Не выполнены: S1…S4, Ф.1, Ф.2. Таблицы ниже остаются описанием того, что делает шаг и как он проверяется; тикеты на выполненные шаги не нужны.
 
 Отличия и уточнения по итогам выполнения:
 
 - **0.1.** Пакеты: `com.example.calhexlet.api` (интерфейсы) и `com.example.calhexlet.api.model` (DTO). Сверх опций ADR-0004 заданы `generateSupportingFiles=false`, `generateJsonIncludeAnnotations=false`, `generateJsonSetterNullsAnnotations=false` (лишние файлы и предупреждения генератора). Checkstyle: в `pom.xml` у `maven-checkstyle-plugin` задан `sourceDirectories` = `src/main/java`, иначе связка `generate-sources checkstyle:check` падает на сгенерированном коде.
+- **0.2.** `SpaFallbackConfig` подменяет обработчик статики `/**`: существующие файлы отдаются как прежде, а путь без точки в последнем сегменте и не под `/api` получает `index.html`. Поэтому fallback шире, чем `/book` и `/admin`: неизвестный клиентский путь тоже получает приложение (200 и клиентская страница 404). Тест `SpaFallbackTest` (`@WebMvcTest`) читает `index.html` из тестового ресурса `src/test/resources/static/`, то есть не зависит от сборки фронтенда. В Docker-образе прямая загрузка и F5 на `/book` и `/admin` проверены в Chromium через Playwright разово, постоянного сквозного теста нет (раздел 7).
 - **0.3.** В задаче CI `frontend` не было шага `npm run build`: добавлены он и сторож `test ! -e dist/mockServiceWorker.js`. Обработчики Vitest (`server.use`) и браузерный фейк (`src/mocks/handlers.ts`) — два разных набора, один тест проверяет, что фейк отвечает сгенерированному клиенту (раздел 7). Orval запускается с `clean: true`.
 - **0.4.** Форма команды выбрана внутри шага: `scripts/generate.sh` (POSIX `sh`). Зависимости не ставит, при их отсутствии останавливается с подсказкой выполнить `npm ci` в `contract/` и `frontend/`.
 - **Известный нюанс.** У `openapi-generator-maven-plugin` не задан `cleanupOutput`: если убрать операцию или схему из контракта, старые файлы остаются в `target/generated-sources` до `./mvnw clean`.
@@ -155,7 +156,7 @@
 | # | Шаг | Содержание |
 |---|---|---|
 | 1.1 | FE | `/admin`: первая настоящая страница Админки. Список Типов (листается по `total`) и форма создания. 400 → ошибки у полей по `errors[]`; 409 `event_type_name_taken` → ошибка у поля `name`. Фейк: `createEventType`, `listEventTypes` достраивается. Тест «админка: пока не реализована → 404» заменяется тестами страницы. |
-| 1.2 | BE | `listEventTypes`, `createEventType`, `getEventType`. `@RestControllerAdvice`: четыре исключения Spring → `ValidationProblem` (одно нарушение на поле в порядке `required → invalid_format → blank → too_long → out_of_range → not_on_grid`, битый JSON → `errors: []`), доменные 404 `NotFoundProblem` и 409 `EventTypeNameTakenProblem`. `non_null`, валидатор, `LevelResolver`. Контрактные тесты: статус и `code` каждого отказа, уникальность названия без учёта регистра, кратность 15 (`not_on_grid` вручную), `page` и `pageSize`. Удаление `HelloController`, `Greeting`, `HelloControllerTest`; пример запуска одного теста в `AGENTS.md` заменяется настоящим. |
+| 1.2 | BE | `listEventTypes`, `createEventType`, `getEventType`. `@RestControllerAdvice`: четыре исключения Spring → `ValidationProblem` (одно нарушение на поле в порядке `required → invalid_format → blank → too_long → out_of_range → not_on_grid`, битый JSON → `errors: []`), доменные 404 `NotFoundProblem` и 409 `EventTypeNameTakenProblem`. `non_null`, валидатор, `LevelResolver`. Контрактные тесты: статус и `code` каждого отказа, уникальность названия без учёта регистра, кратность 15 (`not_on_grid` вручную), `page` и `pageSize`. Удаление `HelloController`, `Greeting`, `HelloControllerTest`; пример запуска одного теста в `AGENTS.md` заменяется настоящим. `SpaFallbackTest` (голый `@WebMvcTest`) поднимает все контроллеры: как только у контроллера появится сервис, ограничить срез или добавить `@MockitoBean`. |
 | 1.3 | КТ | Создать Тип в Админке → он в списке → повтор названия даёт ошибку у поля. |
 
 ### S2 «Слоты»
@@ -228,7 +229,7 @@
 
 ## 11. Расхождения с другими документами (чинятся по ходу очереди)
 
-- **ADR-0001, срок SPA-fallback.** В ADR сказано «в тикете страницы записи». По плану это шаг 0.2, до первой настоящей страницы (`/admin` в S1). В шаге 0.2 в ADR-0001 дописывается строка о переносе срока. Тикет-источник: [«Нарезка реализации…»](https://github.com/SevyConst/ai-for-developers-project-386/issues/22), п. 7.
+- **ADR-0001, срок SPA-fallback.** В ADR сказано «в тикете страницы записи». По плану это шаг 0.2, до первой настоящей страницы (`/admin` в S1). В шаге 0.2 в ADR-0001 дописана строка о переносе срока. Тикет-источник: [«Нарезка реализации…»](https://github.com/SevyConst/ai-for-developers-project-386/issues/22), п. 7.
 - **Переходный период мока.** В [«Стеке потребления контракта…»](https://github.com/SevyConst/ai-for-developers-project-386/issues/21), п. 4 сказано «обработчик операции удаляется, когда она реализована на бэкенде». Заменено правилом «всё или ничего» (раздел 7).
 - **`mockServiceWorker.js` в `public/`.** Ловушка из п. 4 того же тикета снята (раздел 9).
 - **Нулевой срез.** Тот же тикет передавал в нулевой срез `@RestControllerAdvice`, валидатор и `LevelResolver`; по плану они уходят в BE-трек S1.
