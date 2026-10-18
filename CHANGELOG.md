@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/SevyConst/ai-for-developers-project-386/compare/v1.2.0...v1.3.0) (2026-10-18)
+
+
+### Features
+
+* **frontend:** add admin page with event types list and create form ([#26](https://github.com/SevyConst/ai-for-developers-project-386/issues/26)) ([3617b0e](https://github.com/SevyConst/ai-for-developers-project-386/commit/3617b0e5401224df74bd78cb0d9645300d6aa377))
+* **frontend:** add admin page with event types list and create form ([#26](https://github.com/SevyConst/ai-for-developers-project-386/issues/26)) ([6722390](https://github.com/SevyConst/ai-for-developers-project-386/commit/67223905347cb07e761d88a36ddd80bc417a03a4))
+
+
+### Bug Fixes
+
+* **backend:** serve index.html for client-side routes (SPA fallback) … ([3d11bed](https://github.com/SevyConst/ai-for-developers-project-386/commit/3d11bed3fa7a553a7bf515f48f317c89f9179f66))
+* **backend:** serve index.html for client-side routes (SPA fallback) ([#24](https://github.com/SevyConst/ai-for-developers-project-386/issues/24)) ([6d9ab52](https://github.com/SevyConst/ai-for-developers-project-386/commit/6d9ab52fa7e70b6dab5a29b2adad012164316f9b))
+
 ## [1.2.0](https://github.com/SevyConst/ai-for-developers-project-386/compare/v1.1.0...v1.2.0) (2026-10-16)
 
 
